@@ -7,8 +7,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -37,10 +39,11 @@ public class MainActivity extends AppCompatActivity {
     ImageView photo;
     Button select, recognize;
     ProgressBar progressBar;
+    LinearLayout result_zone;
     TextView name, sex, nation, birthday, address, id_number;
-    private static final int REQUEST_IMAGE_PICK = 1; // 从相册选择
-    private static final int REQUEST_IMAGE_CAPTURE = 2; // 拍照
+
     private String currentPhotoPath = null; // 拍照后图片路径
+    private File currentPhotoFile; // 用于保存拍照时创建的文件
 
     // 定义用于拍照、打开相册的结果回调
     private ActivityResultLauncher<Intent> cameraLauncher;
@@ -59,10 +62,12 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
         photo = findViewById(R.id.photo);
         select = findViewById(R.id.select);
         recognize = findViewById(R.id.recognize);
         progressBar = findViewById(R.id.progressBar);
+        result_zone = findViewById(R.id.result_zone);
         name = findViewById(R.id.name);
         sex = findViewById(R.id.sex);
         nation = findViewById(R.id.nation);
@@ -75,19 +80,17 @@ public class MainActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK) {
-                        File photoFile = null;
-                        try {
-                            photoFile = createImageFile();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        if (photoFile != null) {
+                        if (currentPhotoFile != null) {
                             Uri photoURI = FileProvider.getUriForFile(this,
                                     "com.czx.tencentv3ocr.fileprovider",
-                                    photoFile);
-                            photo.setImageURI(photoURI);
+                                    currentPhotoFile);
+                            photo.setImageURI(photoURI); // 设置图片
                             recognize.setEnabled(true);
+                        } else {
+                            Toast.makeText(this, "拍照文件未正确创建", Toast.LENGTH_SHORT).show();
                         }
+                    }else{
+                        Toast.makeText(this, "拍照被取消或失败", Toast.LENGTH_SHORT).show();
                     }
                 });
 
@@ -108,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
         select.setOnClickListener(v -> {
             CharSequence[] options = {"拍照", "从相册选择"};
             AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-            builder.setTitle("选择身份证照片");
+            builder.setTitle("请选择获取照片的方式");
             builder.setItems(options, (dialog, which) -> {
                 if (which == 0) {
                     // 检查并请求相机权限
@@ -119,6 +122,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             builder.show();
+        });
+
+        recognize.setOnClickListener(v -> {
+            progressBar.setVisibility(View.VISIBLE);
+            Toast.makeText(this, "识别中...", Toast.LENGTH_SHORT).show();
+            progressBar.setVisibility(View.GONE);
+            result_zone.setVisibility(View.VISIBLE);
         });
     }
 
@@ -141,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
             File photoFile = null;
             try {
                 photoFile = createImageFile();
+                currentPhotoFile = photoFile;
             } catch (IOException ex) {
                 ex.printStackTrace();
                 Toast.makeText(this, "创建图片文件失败", Toast.LENGTH_SHORT).show();
@@ -190,12 +201,14 @@ public class MainActivity extends AppCompatActivity {
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_READ_EXTERNAL_STORAGE) {
+            // 选择照片的权限验证
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 pickImageFromGallery();
             } else {
                 Toast.makeText(this, "需要存储权限才能选择照片", Toast.LENGTH_SHORT).show();
             }
         } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            // 拍摄照片的权限验证
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startCamera();
             } else {
