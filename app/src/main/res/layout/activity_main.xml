@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/main"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/misty_rose"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+    android:background="@color/misty_rose">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -17,27 +17,29 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:visibility="visible"
             android:orientation="vertical">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="25sp"
                 android:gravity="center_horizontal"
-                android:background="@color/sky_blue"
+                android:background="@color/light_blue"
+                android:textColor="@color/white"
                 android:textStyle="bold"
-                android:textColor="@color/black"
-                android:text="身份证识别" />
+                android:textSize="30sp"
+                android:text="TencentV3身份证识别" />
 
             <ImageView
                 android:id="@+id/photo"
                 android:layout_width="match_parent"
-                android:layout_height="300dp"
-                android:layout_marginTop="5dp"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:layout_gravity="center_horizontal"
                 tools:srcCompat="@tools:sample/avatars"
+                android:src="@drawable/ic_default_photo_placeholder"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="10dp"
                 android:scaleType="centerCrop"
-                android:backgroundTint="@color/light_pink"
                 android:contentDescription="身份证预览"/>
 
             <Button
@@ -45,30 +47,23 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="25sp"
-                android:layout_marginTop="5dp"
-                android:textColor="@color/white"
-                android:background="@color/light_blue"
-                android:text="选择身份证照片" /><!-- 使用选择器 -->
+                android:gravity="center_horizontal"
+                android:text="获取照片" /><!-- 使用选择器 -->
 
             <Button
                 android:id="@+id/recognize"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="25sp"
-                android:layout_marginTop="5dp"
+                android:gravity="center_horizontal"
+                android:layout_marginTop="10dp"
                 android:enabled="false"
-                android:textColor="@color/white"
-                android:background="@color/light_blue"
                 android:text="开始识别" />  <!-- 使用选择器 -->
-
-            <ProgressBar
-                android:id="@+id/progressBar"
-                style="?android:attr/progressBarStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:visibility="gone" />
         </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="10dp"/>
 
         <!--识别结果区域-->
         <LinearLayout
@@ -76,22 +71,26 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp"
             android:visibility="gone">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/newPink"
+                android:background="@color/deep_pink"
                 android:gravity="center_horizontal"
-                android:text="识别结果"
-                android:textColor="@color/black"
-                android:textSize="25sp" />
+                android:text="身份证识别结果"
+                android:textColor="@color/white"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/gray"
+                android:background="@color/light_pink"
                 android:text="姓名"
                 android:textSize="25sp" />
 
@@ -99,13 +98,18 @@
                 android:id="@+id/name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="your name"
-                android:textSize="25sp" />
+                android:background="@color/lavender_blush"
+                android:text="your name..."
+                android:textSize="20sp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/gray"
+                android:background="@color/light_pink"
                 android:text="性别"
                 android:textSize="25sp" />
 
@@ -113,13 +117,18 @@
                 android:id="@+id/sex"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="your sex"
-                android:textSize="25sp" />
+                android:background="@color/lavender_blush"
+                android:text="your sex..."
+                android:textSize="20sp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/gray"
+                android:background="@color/light_pink"
                 android:text="民族"
                 android:textSize="25sp" />
 
@@ -127,13 +136,18 @@
                 android:id="@+id/nation"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="your nation"
-                android:textSize="25sp" />
+                android:background="@color/lavender_blush"
+                android:text="your nation..."
+                android:textSize="20sp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/gray"
+                android:background="@color/light_pink"
                 android:text="出生"
                 android:textSize="25sp" />
 
@@ -141,13 +155,18 @@
                 android:id="@+id/birthday"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="your birthday"
-                android:textSize="25sp" />
+                android:background="@color/lavender_blush"
+                android:text="your birthday..."
+                android:textSize="20sp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/gray"
+                android:background="@color/light_pink"
                 android:text="住址"
                 android:textSize="25sp" />
 
@@ -155,13 +174,18 @@
                 android:id="@+id/address"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="your address"
-                android:textSize="25sp" />
+                android:background="@color/lavender_blush"
+                android:text="your address..."
+                android:textSize="20sp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@color/gray"
+                android:background="@color/light_pink"
                 android:text="公民身份号码"
                 android:textSize="25sp" />
 
@@ -169,8 +193,9 @@
                 android:id="@+id/id_number"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="your ID number"
-                android:textSize="25sp" />
+                android:background="@color/lavender_blush"
+                android:text="your ID number..."
+                android:textSize="20sp" />
 
         </LinearLayout>
     </LinearLayout>

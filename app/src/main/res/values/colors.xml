@@ -14,6 +14,7 @@
     <color name="light_pink">#FFB6C1</color><!--经典的浅粉色，柔和温暖-->
     <color name="misty_rose">#FFE4E1</color><!--更淡的粉红，带一点米白-->
     <color name="lavender_blush">#FFF0F5</color><!--极浅的粉红，接近白色-->
-    <color name="pink200">#F48FB1</color><!--Material Design 中的浅粉色-->
+    <color name="pink200">#FA88AB</color><!--Material Design 中的浅粉色-->
     <color name="newPink">#F882A7</color><!--Material Design 中的浅粉色-->
+    <color name="deep_pink">#FF1493</color>
 </resources>
