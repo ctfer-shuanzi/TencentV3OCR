@@ -1,5 +1,7 @@
 package com.czx.tencentv3ocr;
 
+import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -9,15 +11,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Base64;
+import android.util.Log;
 import android.view.View;
-import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
-import android.Manifest;
-
-import androidx.activity.EdgeToEdge;
+import android.widget.*;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -26,271 +23,267 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
+import com.google.gson.Gson;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
-    ImageView photo;
-    Button select, recognize;
+    // 常量定义
+    private static final int PERMISSION_CAMERA = 100;
+    private static final int PERMISSION_STORAGE = 101;
 
-    LinearLayout result_zone;
-    TextView name, sex, nation, birthday, address, id_number;
+    // 替换为自己的密钥
+    private static final String SECRET_ID = "请替换为你自己的腾讯云SecretId";
+    private static final String SECRET_KEY = "请替换为你自己的腾讯云SecretKey";
 
-    private File currentPhotoFile; // 用于保存拍照时创建的临时文件
-    private String currentPhotoPath; // 保存currentPhotoFile的绝对路径
-    private Bitmap selectedBitmap;// 保存从currentPhotoPath加载的bitmap
+    // UI 控件
+    private ImageView ivPhoto;
+    private Button btnSelect, btnRecognize;
+    private LinearLayout llResultZone;
+    private TextView tvName, tvSex, tvNation, tvBirthday, tvAddress, tvIdNumber;
 
-    // 定义用于拍照、打开相册的结果回调
+    // 图片相关
+    private File currentPhotoFile;
+    private Bitmap selectedBitmap;
+
+    // ActivityResult 启动器
     private ActivityResultLauncher<Intent> cameraLauncher;
     private ActivityResultLauncher<Intent> galleryLauncher;
-
-    private static final int REQUEST_READ_EXTERNAL_STORAGE = 100;
-    private static final int REQUEST_CAMERA_PERMISSION = 101;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        initView();
+        initListener();
+        initLauncher();
+    }
 
-        photo = findViewById(R.id.photo);
-        select = findViewById(R.id.select);
-        recognize = findViewById(R.id.recognize);
-        result_zone = findViewById(R.id.result_zone);
-        name = findViewById(R.id.name);
-        sex = findViewById(R.id.sex);
-        nation = findViewById(R.id.nation);
-        birthday = findViewById(R.id.birthday);
-        address = findViewById(R.id.address);
-        id_number = findViewById(R.id.id_number);
+    // 初始化控件
+    private void initView() {
+        ivPhoto = findViewById(R.id.photo);
+        btnSelect = findViewById(R.id.select);
+        btnRecognize = findViewById(R.id.recognize);
+        llResultZone = findViewById(R.id.result_zone);
+        tvName = findViewById(R.id.name);
+        tvSex = findViewById(R.id.sex);
+        tvNation = findViewById(R.id.nation);
+        tvBirthday = findViewById(R.id.birthday);
+        tvAddress = findViewById(R.id.address);
+        tvIdNumber = findViewById(R.id.id_number);
 
-        photo.setAdjustViewBounds(true);
+        btnRecognize.setEnabled(false);
+    }
 
-        // 注册拍照的 ActivityResultLauncher
-        cameraLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == RESULT_OK) {
-                        if (currentPhotoFile != null) {
-                            Uri imageURI = FileProvider.getUriForFile(this,
-                                    "com.czx.tencentv3ocr.fileprovider",
-                                    currentPhotoFile);// 获取图片的URI
-                            photo.setImageURI(imageURI); // 设置图片
+    // 初始化点击事件
+    private void initListener() {
+        btnSelect.setOnClickListener(v -> showPhotoDialog());
+        btnRecognize.setOnClickListener(v -> startOcr());
+    }
 
-                            currentPhotoPath = currentPhotoFile.getAbsolutePath();// 保存临时文件的绝对路径
-                            selectedBitmap = BitmapFactory.decodeFile(currentPhotoPath);// 从currentPhotoPath加载bitmap
-
-                            if(selectedBitmap != null){
-                                recognize.setEnabled(true);// 启用”识别“按钮
-                            }else {
-                                Toast.makeText(this, "无法加载选择的图片", Toast.LENGTH_SHORT).show();
-                            }
-
-                        } else {
-                            Toast.makeText(this, "拍照的临时文件未正确创建", Toast.LENGTH_SHORT).show();
-                        }
-                    }else{
-                        Toast.makeText(this, "拍照被取消或失败", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-        // 注册打开相册的 ActivityResultLauncher
-        galleryLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == RESULT_OK) {
-                        Intent data = result.getData();
-                        if (data != null) {
-                            Uri imageURI = data.getData();// 获取图片的URI
-                            photo.setImageURI(imageURI);// 设置图片
-
-                            // 从 URI 加载 Bitmap
-                            try {
-                                InputStream inputStream = getContentResolver().openInputStream(imageURI);
-                                selectedBitmap = BitmapFactory.decodeStream(inputStream);// 注意：相册图片没有 currentPhotoPath，所以不要依赖它！
-
-                                if (selectedBitmap != null) {
-                                    recognize.setEnabled(true);
-                                } else {
-                                    Toast.makeText(this, "无法加载选择的图片", Toast.LENGTH_SHORT).show();
-                                }
-
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                                Toast.makeText(this, "读取相册图片失败", Toast.LENGTH_SHORT).show();
-                            }
-                        }
-                    }
-                });
-
-        select.setOnClickListener(v -> {
-            CharSequence[] options = {"拍照", "从相册选择"};
-            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-            builder.setTitle("请选择获取照片的方式");
-            builder.setItems(options, (dialog, which) -> {
-                if (which == 0) {
-                    handleCameraSelection();// 如果选择了”拍照“
-                } else if (which == 1) {
-                    handleGallerySelection();// 如果选择了”从相册选择“
+    // 初始化ActivityResultLauncher
+    private void initLauncher() {
+        // 拍照
+        cameraLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            if (result.getResultCode() == RESULT_OK && currentPhotoFile != null) {
+                Uri uri = FileProvider.getUriForFile(this, "com.czx.tencentv3ocr.fileprovider", currentPhotoFile);
+                Bitmap bitmap = null;
+                try (InputStream is = getContentResolver().openInputStream(uri)) {
+                    bitmap = BitmapFactory.decodeStream(is);
+                    ivPhoto.setImageBitmap(bitmap);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Toast.makeText(this, "加载图片失败", Toast.LENGTH_SHORT).show();
                 }
-            });
-            builder.show();
-        });
-
-        recognize.setOnClickListener(v -> {
-            if(selectedBitmap == null){
-                Toast.makeText(this, "还没有获取到bitmap", Toast.LENGTH_SHORT).show();
-                return ;
+                selectedBitmap = bitmap;
+                btnRecognize.setEnabled(selectedBitmap != null);
+            } else {
+                Toast.makeText(this, "拍照取消或失败", Toast.LENGTH_SHORT).show();
             }
+        });
 
-            Toast.makeText(this, "识别中...", Toast.LENGTH_SHORT).show();
-
-            String imageBase64 = bitmapToBase64(selectedBitmap);
-
-            result_zone.setVisibility(View.VISIBLE);
-
+        // 相册
+        galleryLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            Intent data = result.getData();
+            if (result.getResultCode() == RESULT_OK && data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                ivPhoto.setImageURI(uri);
+                try (InputStream is = getContentResolver().openInputStream(uri)) {
+                    selectedBitmap = BitmapFactory.decodeStream(is);
+                    btnRecognize.setEnabled(selectedBitmap != null);
+                } catch (IOException e) {
+                    Toast.makeText(this, "读取图片失败", Toast.LENGTH_SHORT).show();
+                }
+            }else{
+                Toast.makeText(this, "没有权限", Toast.LENGTH_SHORT).show();
+            }
         });
     }
 
-    // 检查是否已有相机使用权限或相册读取权限
-    private boolean checkMyPermission(String permission) {
-        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED;
+    // 显示选择照片对话框
+    private void showPhotoDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("选择照片来源")
+                .setItems(new String[]{"拍照", "相册"}, (dialog, which) -> {
+                    if (which == 0) {
+                        checkPermission(Manifest.permission.CAMERA, PERMISSION_CAMERA, this::openCamera);
+                    } else {
+                        String permission = getStoragePermission();
+                        checkPermission(permission, PERMISSION_STORAGE, this::openGallery);
+                    }
+                }).show();
     }
 
-    private void handleCameraSelection() {
-        String requestedPermission = Manifest.permission.CAMERA;
-        // 检查相机权限
-        if(checkMyPermission(requestedPermission)){
-            openCamera();// 有权限，直接打开相机
-        }else{
-            Toast.makeText(this,"正在请求相机权限",Toast.LENGTH_SHORT).show();// 没权限，去请求权限
-            ActivityCompat.requestPermissions(this,new String[]{requestedPermission}, REQUEST_CAMERA_PERMISSION);
+    // 权限检查
+    private void checkPermission(String permission, int requestCode, Runnable onGranted) {
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            onGranted.run();
+        } else {
+            ActivityCompat.requestPermissions(this, new String[]{permission}, requestCode);
         }
     }
 
-    private void handleGallerySelection() {
-        String requestedPermission = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+    // 打开相机
+    @SuppressLint("QueryPermissionsNeeded")
+    private void openCamera() {
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            try {
+                currentPhotoFile = createImageFile();
+                Uri uri = FileProvider.getUriForFile(this, "com.czx.tencentv3ocr.fileprovider", currentPhotoFile);
+                intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+                cameraLauncher.launch(intent);
+            } catch (IOException e) {
+                Toast.makeText(this, "创建图片文件失败", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "未检测到相机应用", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // 打开相册
+    private void openGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        galleryLauncher.launch(intent);
+    }
+
+    // 开始OCR识别
+    private void startOcr() {
+        if (selectedBitmap == null) {
+            Toast.makeText(this, "请先选择图片", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 校验密钥是否替换
+        if (SECRET_ID.contains("请替换") || SECRET_KEY.contains("请替换")) {
+            Toast.makeText(this, "请先修改 MainActivity 中的 SECRET_ID 和 SECRET_KEY 为你自己的密钥！", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Toast.makeText(this, "识别中...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                // 图片转Base64
+                String base64 = bitmapToBase64(selectedBitmap);
+
+                // 构建请求体
+                Map<String, Object> params = new HashMap<>();
+                params.put("ImageBase64", base64);
+                String payload = new Gson().toJson(params);
+                Log.d("czx", "用于签名的 JSON 请求体: " + payload);  // 👈 打印此内容
+
+
+                // 生成签名
+                long timestamp = System.currentTimeMillis() / 1000;
+                TencentCloudSigner signer = new TencentCloudSigner(SECRET_ID, SECRET_KEY,timestamp);
+                String auth = signer.generateAuthorization(payload);
+                long ts = System.currentTimeMillis() / 1000;
+                Log.d("czx", "当前系统 UTC 时间戳（秒）: " + ts);
+                Log.d("czx", "对应 UTC 时间: " + new Date(ts * 1000L).toGMTString());
+                Log.d("czx", "对应本地时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date(ts * 1000L)));
+
+                if (auth == null) {
+                    runOnUiThread(() -> Toast.makeText(this, "签名失败", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                // 发送请求
+                String responseJson = ApiRequestSender.sendPostRequest(payload,auth,timestamp);
+                Log.d("czx","responseJson:"+responseJson);
+
+                // 解析结果
+                if (responseJson != null && !responseJson.isEmpty()) {
+                    IdentifyResult result = ApiResponseParser.parseResponse(responseJson);
+                    runOnUiThread(() -> showResult(result));
+                } else {
+                    runOnUiThread(() -> Toast.makeText(this, "无返回数据", Toast.LENGTH_SHORT).show());
+                }
+            } catch (Exception e) {
+                Log.d("czx", Objects.requireNonNull(e.getMessage()));
+                runOnUiThread(() -> Toast.makeText(this, "识别失败：" + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    // 显示识别结果
+    private void showResult(IdentifyResult result) {
+        if (result == null || result.getErrorCode() != 0) {
+            String msg = result != null ? result.getErrorMsg() : "未知错误";
+            Toast.makeText(this, "识别失败：" + msg, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        llResultZone.setVisibility(View.VISIBLE);
+        tvName.setText(result.getName());
+        tvSex.setText(result.getSex());
+        tvNation.setText(result.getNation());
+        tvBirthday.setText(result.getBirth());
+        tvAddress.setText(result.getAddress());
+        tvIdNumber.setText(result.getId());
+    }
+
+    // 工具方法：Bitmap转Base64
+    private String bitmapToBase64(Bitmap bitmap) {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos);
+        return Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+    }
+
+    // 工具方法：创建图片文件
+    private File createImageFile() throws IOException {
+        String fileName = "IMG_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        return File.createTempFile(fileName, ".jpg", storageDir);
+    }
+
+    // 工具方法：获取存储权限（适配Android 13+）
+    private String getStoragePermission() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 ? Manifest.permission.READ_MEDIA_IMAGES
                 : Manifest.permission.READ_EXTERNAL_STORAGE;
-        // 检查并请求存储权限
-        if(checkMyPermission(requestedPermission)){
-            openGallery();// 有权限，直接打开相册
-        }else{
-            Toast.makeText(this,"没有打开相册的权限",Toast.LENGTH_SHORT).show();// 没权限，去请求权限
-            requestStoragePermissionWithExplanation(requestedPermission);
-        }
     }
 
-    // 启用相机
-    private void openCamera() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            File photoFile = null;
-            try {
-                photoFile = createImageFile();
-                currentPhotoFile = photoFile;
-            } catch (IOException ex) {
-                ex.printStackTrace();
-                Toast.makeText(this, "创建图片文件失败", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (photoFile != null) {
-                Uri photoURI = FileProvider.getUriForFile(this,
-                        "com.czx.tencentv3ocr.fileprovider",
-                        photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                cameraLauncher.launch(takePictureIntent);
-            }
-        } else {
-            Toast.makeText(this, "没有找到相机应用", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void openGallery() {
-        Intent pickPhotoIntent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        galleryLauncher.launch(pickPhotoIntent);
-    }
-
-    private void requestStoragePermissionWithExplanation(String permission) {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
-            // 用户之前拒绝过，显示解释
-            new AlertDialog.Builder(this)
-                    .setTitle("存储权限说明")
-                    .setMessage("我们需要访问您的照片来存储和识别身份证信息")
-                    .setPositiveButton("去授权", (dialog, which) -> {
-                        ActivityCompat.requestPermissions(MainActivity.this,
-                                new String[]{permission},
-                                REQUEST_READ_EXTERNAL_STORAGE);
-                    })
-                    .setNegativeButton("取消", null)
-                    .show();
-        } else {
-            // 直接请求权限
-            ActivityCompat.requestPermissions(this,
-                    new String[]{permission},
-                    REQUEST_READ_EXTERNAL_STORAGE);
-        }
-    }
-
-    // 处理权限请求结果
+    // 权限请求回调
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_READ_EXTERNAL_STORAGE) {
-            // 选择照片的权限验证
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                openGallery();
-            } else {
-                Toast.makeText(this, "需要存储权限才能选择照片", Toast.LENGTH_SHORT).show();
-            }
-        } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            // 拍摄照片的权限验证
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                openCamera();
-            } else {
-                Toast.makeText(this, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show();
-            }
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (requestCode == PERMISSION_CAMERA) openCamera();
+            else if (requestCode == PERMISSION_STORAGE) openGallery();
+        } else {
+            Toast.makeText(this, "权限被拒绝，无法完成操作", Toast.LENGTH_SHORT).show();
         }
-    }
-
-    // 创建临时文件
-    private File createImageFile() throws IOException {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-
-        File image = File.createTempFile(
-                imageFileName,  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
-        );
-        currentPhotoPath = image.getAbsolutePath();
-        return image;
-    }
-
-    // 将Bitmap转为Base64格式
-    private String bitmapToBase64(Bitmap bitmap) {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        boolean success = bitmap.compress(Bitmap.CompressFormat.JPEG,80,outputStream);// 第二个参数是图片质，取值范围在1-100
-
-        if(!success){
-            throw new RuntimeException("无法压缩Bitmap");
-        }
-
-        byte[] imageBytes = outputStream.toByteArray();
-        return Base64Util.encode(imageBytes);
     }
 }

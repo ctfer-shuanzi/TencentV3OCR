@@ -29,7 +29,10 @@ android {
 }
 
 dependencies {
-    implementation 'com.google.code.gson:gson:2.10.1' // gson依赖
+    // Gson（用于JSON解析）
+    implementation 'com.google.code.gson:gson:2.10.1'
+    // OkHttp（替代手动HttpURLConnection,简化HTTP请求）
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
     implementation libs.appcompat
     implementation libs.material
